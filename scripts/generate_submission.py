@@ -65,9 +65,32 @@ def main() -> None:
     submission = build_submission(ranking)
     submission.to_csv(out_path, index=False)
 
+    REQUIRED_COLS = {"record_id", "final_prediction", "confidence", "action_taken"}
+    LABEL_VOCAB   = {"ACCURATE", "INACCURATE", "INCONCLUSIVE"}
+    ACTION_VOCAB  = {"R3_ACCEPT", "OVERRIDE", "ROBOCALL"}
+
+    written = pd.read_csv(out_path)
+    written_cols = set(written.columns)
+    missing = REQUIRED_COLS - written_cols
+    assert not missing, f"submission missing required columns: {missing}"
+
+    bad_labels = set(written["final_prediction"].unique()) - LABEL_VOCAB
+    assert not bad_labels, f"unexpected final_prediction values: {bad_labels}"
+
+    bad_actions = set(written["action_taken"].unique()) - ACTION_VOCAB
+    assert not bad_actions, f"unexpected action_taken values: {bad_actions}"
+
+    n_calls = int((written["action_taken"] == "ROBOCALL").sum())
+    assert n_calls <= 450, f"robocall budget exceeded: {n_calls} > 450"
+
+    conf = pd.to_numeric(written["confidence"], errors="coerce")
+    assert conf.between(0.0, 1.0).all(), "confidence values must be in [0, 1]"
+
     print(f"Total rows:       {len(submission)}")
     print(f"Action breakdown:")
     print(submission["action_taken"].value_counts().to_string())
+    print(f"Validation:       columns OK · labels OK · actions OK · "
+          f"robocalls {n_calls} ≤ 450 · confidence ∈ [0,1]")
     print(f"\nSaved → {out_path}")
 
 

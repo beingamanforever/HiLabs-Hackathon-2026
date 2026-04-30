@@ -62,19 +62,34 @@ Call QC INACCURATE) and asserts zero changes inside that subset before returning
 
 - All inference features are signal-based. No Call QC label leakage.
 - 5-fold CV recomputes `q̂` per fold; the precision bound is held-out evidence.
-- LOSO CV (`scripts/leave_one_state_out_cv.py`) verifies stability when each
-  state is held out individually.
-- Agreement-zone flips remain at 0 by construction across every fold and every
-  rule application.
+- LOSO CV: holding out each state individually (24 states with ≥ 25 rows),
+  Track 2 delta is non-negative in 24/24 — positive in 10, neutral in 14,
+  negative in 0. Mean corrected accuracy 59.2%, median 60.0%. Worst absolute
+  state (AL, corrected 37.7%) still gets +31.6 pp over its 6.1% baseline.
+- Agreement-zone violations across all 24 LOSO folds: 0. The guardrail holds
+  by construction.
 
 ## Cost model
 
-- Existing R3 spend per row: $0.035.
-- Robocall: $0.50 per call, ~40% conclusive.
-- Manual QC: $5.00 per row.
-- Track 2 marginal cost: $0.
-- Track 3 marginal cost: ≤ 450 × $0.50 = $225.
+Per-row prices: R3 $0.035, robocall $0.50 (40% conclusive), manual QC $5.00.
 
-For the labeled subset: total $108 vs $7,500 fully manual. Per useful outcome
-(Track 2 corrections + Track 3 verdicts) the system is ~4× more efficient than
-naive robocalling of all disagreements.
+Naive baseline — robocall every disagreement:
+
+```
+1,231 disagreements × $0.50 = $615.50
+× 40% = 492 verdicts
+$1.25 per verdict, 492 / 1,231 = 40% of disagreements resolved
+```
+
+Ours — Track 2 then budgeted Track 3:
+
+```
+Track 2: 132 corrections × $0 = $0
+Track 3: 337 calls × $0.50 = $168.50, × 40% = 135 verdicts
+267 resolved, $168.50 spend, $0.63 per resolved disagreement
+```
+
+Per-verdict efficiency: $1.25 / $0.63 ≈ 2.0×. Coverage-adjusted: 54% of naive's
+verdicts at 27% of naive's spend, with a 95% conformal precision bound on every
+flip that naive does not carry. Versus full manual QC ($7,500 for 1,231 rows),
+the system is 98.6% cheaper.

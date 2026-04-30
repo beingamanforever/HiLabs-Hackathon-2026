@@ -1,0 +1,30 @@
+{
+  "n_states_evaluated": 24,
+  "min_corrected_accuracy": 0.37719298245614036,
+  "mean_corrected_accuracy": 0.5920302603321113,
+  "median_corrected_accuracy": 0.6,
+  "states_below_floor": [
+    "AL",
+    "MI",
+    "NJ",
+    "IL",
+    "CA",
+    "MA",
+    "CO",
+    "CT",
+    "PA"
+  ],
+  "accuracy_floor": 0.53,
+  "agreement_zone_violations_total": 0,
+  "worst_state": {
+    "state": "AL",
+    "test_rows": 114,
+    "baseline_accuracy": 0.06140350877192982,
+    "corrected_accuracy": 0.37719298245614036,
+    "delta": 0.3157894736842105,
+    "flips": 36,
+    "agreement_zone_violations": 0,
+    "q_hat": 0.8010291595197255,
+    "below_floor": true
+  }
+}
