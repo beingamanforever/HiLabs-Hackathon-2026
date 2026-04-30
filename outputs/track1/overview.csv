@@ -1,0 +1,7 @@
+metric,value
+total_rows,2493.0
+r3_vs_web_agreement,0.7986361813076615
+r3_vs_call_agreement,0.5062174087444845
+disagreement_rows,1231.0
+false_inaccurate_rows,465.0
+false_accurate_rows,276.0

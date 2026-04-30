@@ -1,0 +1,5 @@
+override_reason,rows,corrected_accuracy,avg_confidence
+keep_r3,2253,0.5348424323124723,0.6564958277851753
+conformal_org_consensus_flip,111,1.0,0.6312072072072071
+keep_r3_triage_candidate,108,0.5277777777777778,0.5665583333333334
+provider_signal_midscore_flip,21,0.8095238095238095,0.81

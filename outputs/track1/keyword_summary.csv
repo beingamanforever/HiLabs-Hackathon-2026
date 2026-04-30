@@ -1,0 +1,7 @@
+keyword,rows_flagged,disagreement_rate_when_flagged
+operator_or_frontdesk,2242,0.45628902765388046
+operator_confirmed_accurate,225,0.7733333333333333
+telehealth,152,0.3815789473684211
+wrong_org_phone,107,0.411214953271028
+left_org,63,0.38095238095238093
+new_address,4,0.5

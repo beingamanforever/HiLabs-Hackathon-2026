@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+.env
+.DS_Store
+*.egg-info/
+build/
+dist/
+
+# Licensed input data — not redistributable
+Base data_hackathon.xlsx
+Claims data_Hackathon.xlsx
+McKesson Compile Data Dictionary - *.xlsx
+
+# Local Claude / agent files
+CLAUDE.md
+.claude/
