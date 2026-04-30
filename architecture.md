@@ -9,7 +9,7 @@
 | Track 1 | `src/r3hackathon/track1.py` | Disagreement taxonomy (6 buckets) + confusion matrix + per-state / per-specialty / per-org / per-keyword summaries. |
 | Track 2 | `src/r3hackathon/track2.py` | Two empirical backoff models (`p_r3_wrong`, `p_pf_accurate`). Conformal threshold `q̂` calibrated per CV fold. Two narrowly scoped passive flips. Hard `assert` on agreement-zone preservation. |
 | Track 3 | `src/r3hackathon/track3.py` | LightGBM LambdaRank over the active-review pool. Conformal filter, business-gain weighting, budget cap. |
-| Submission | `scripts/generate_submission.py` | Writes the judge-spec CSV (`record_id`, `final_prediction`, `confidence`, `action_taken`). |
+| Submission | `scripts/generate_submission.py` | Writes the judge-spec CSV. Per PS Q&A (2026-04-30) the format is the original base workbook preserved as-is, with `Predicted_Label`, `Confidence`, `Action_Taken`, `Call_Priority`, `Triage_Score`, `Reason_Codes` appended. Asserts schema, label / action vocab, robocall ≤ 450, and `Confidence ∈ [0, 1]` after writing. |
 | API | `main.py` | FastAPI: `/health`, `/metrics`, `/metrics/all`, `/predict`, `/triage`. |
 | Docker | `Dockerfile`, `entrypoint.sh` | Assumes IAM role when `AWS_ROLE_ARN` is set (OIDC or static creds), falls back to local-dev mode. |
 
@@ -57,6 +57,19 @@ Call QC INACCURATE) and asserts zero changes inside that subset before returning
 - Loss: LambdaRank with NDCG@450 as the eval objective.
 - Filter: rows must be in the conformally-uncertain pool (`p_wrong_cal > λ̂`).
 - Output: top-N selection where N = min(450, |uncertain pool|).
+
+## Two baselines
+
+The PS team confirmed (Q&A 2026-04-30) that the provided 2,493-row dataset was
+deliberately seeded at ~50% R3-vs-Calling-QC accuracy to discriminate between
+submissions. The stratified-population R3 baseline is ~75%, and the unseen
+holdout will sample from that population. The system reports lift against
+both:
+
+- 50.62% → 61.82% on this dataset (+11.20 pp).
+- The Track 2 conformal gate is dataset-agnostic; `q̂` is recalibrated per
+  fold from nonconformity scores, so the precision bound transfers regardless
+  of which baseline the holdout starts from.
 
 ## Generalisation safeguards
 

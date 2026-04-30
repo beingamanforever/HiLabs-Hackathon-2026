@@ -36,11 +36,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 
-# ── PS-mandated constants ─────────────────────────────────────────────────────
-ALLOWED_LABELS = {"ACCURATE", "INACCURATE", "INCONCLUSIVE"}
+# PS team Q&A 2026-04-30: "Preserve the input file as is and with it give your
+# columns." So submission = base workbook + the appended columns below.
+ALLOWED_LABELS  = {"ACCURATE", "INACCURATE", "INCONCLUSIVE"}
 ALLOWED_ACTIONS = {"R3_ACCEPT", "OVERRIDE", "ROBOCALL"}
-SUBMISSION_COLUMNS = ["record_id", "final_prediction", "confidence", "action_taken"]
-HARD_CALL_CAP = 450
+APPEND_COLUMNS  = ["Predicted_Label", "Confidence", "Action_Taken",
+                   "Call_Priority", "Triage_Score", "Reason_Codes"]
+HARD_CALL_CAP   = 450
 
 
 def _run_inference(base: Path, claims: Path, output_dir: Path) -> Path:
@@ -72,11 +74,12 @@ def _run_inference(base: Path, claims: Path, output_dir: Path) -> Path:
     return ranking_csv
 
 
-def _build_submission(ranking_csv: Path) -> pd.DataFrame:
-    from scripts.generate_submission import build_submission  # type: ignore
+def _build_submission(ranking_csv: Path, base_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    from scripts.generate_submission import build_submission, _load_base  # type: ignore
 
-    ranking = pd.read_csv(ranking_csv)
-    submission = build_submission(ranking)
+    ranking    = pd.read_csv(ranking_csv)
+    base       = _load_base(base_path)
+    submission = build_submission(base, ranking)
     return submission, ranking
 
 
@@ -84,24 +87,24 @@ def _assert_submission(submission: pd.DataFrame, ranking: pd.DataFrame) -> dict:
     """Run every PS-mandated check; raise AssertionError on any violation."""
     n = len(submission)
 
-    # 1. Schema
-    missing = [c for c in SUBMISSION_COLUMNS if c not in submission.columns]
+    # 1. Schema — every appended column present
+    missing = [c for c in APPEND_COLUMNS if c not in submission.columns]
     assert not missing, f"Submission is missing required columns: {missing}"
 
     # 2. Label vocabulary
-    bad_labels = set(submission["final_prediction"].dropna().unique()) - ALLOWED_LABELS
+    bad_labels = set(submission["Predicted_Label"].dropna().unique()) - ALLOWED_LABELS
     assert not bad_labels, (
-        f"final_prediction contains values outside the allowed vocab: {bad_labels}"
+        f"Predicted_Label contains values outside the allowed vocab: {bad_labels}"
     )
 
     # 3. Action vocabulary
-    bad_actions = set(submission["action_taken"].dropna().unique()) - ALLOWED_ACTIONS
+    bad_actions = set(submission["Action_Taken"].dropna().unique()) - ALLOWED_ACTIONS
     assert not bad_actions, (
-        f"action_taken contains values outside the allowed vocab: {bad_actions}"
+        f"Action_Taken contains values outside the allowed vocab: {bad_actions}"
     )
 
     # 4. Robocall budget cap
-    n_robocalls = int((submission["action_taken"] == "ROBOCALL").sum())
+    n_robocalls = int((submission["Action_Taken"] == "ROBOCALL").sum())
     assert n_robocalls <= HARD_CALL_CAP, (
         f"Robocall budget violated: {n_robocalls} > {HARD_CALL_CAP} (PS hard cap)."
     )
@@ -120,20 +123,21 @@ def _assert_submission(submission: pd.DataFrame, ranking: pd.DataFrame) -> dict:
         )
 
     # 6. Confidence in [0, 1]
-    conf = pd.to_numeric(submission["confidence"], errors="coerce")
+    conf = pd.to_numeric(submission["Confidence"], errors="coerce")
     assert conf.between(0.0, 1.0).all() or conf.isna().all(), (
-        f"confidence column out of [0,1] range: min={conf.min()} max={conf.max()}"
+        f"Confidence column out of [0,1] range: min={conf.min()} max={conf.max()}"
     )
 
-    # 7. record_id non-null and unique
-    assert submission["record_id"].notna().all(), "record_id has nulls"
-    assert submission["record_id"].is_unique, "record_id has duplicates"
+    # 7. Row ID non-null and unique (this is the input join key)
+    if "Row ID" in submission.columns:
+        assert submission["Row ID"].notna().all(), "Row ID has nulls"
+        assert submission["Row ID"].is_unique, "Row ID has duplicates"
 
     return {
         "n_rows": n,
         "n_robocalls": n_robocalls,
-        "n_overrides": int((submission["action_taken"] == "OVERRIDE").sum()),
-        "n_r3_accept": int((submission["action_taken"] == "R3_ACCEPT").sum()),
+        "n_overrides": int((submission["Action_Taken"] == "OVERRIDE").sum()),
+        "n_r3_accept": int((submission["Action_Taken"] == "R3_ACCEPT").sum()),
         "agreement_zone_flips": agreement_flips,
         "robocall_budget_ok": n_robocalls <= HARD_CALL_CAP,
     }
@@ -185,7 +189,7 @@ def main() -> int:
     print(f"[predict_holdout] ranking written → {ranking_csv}")
 
     print("[predict_holdout] building judge-spec submission…")
-    submission, ranking = _build_submission(ranking_csv)
+    submission, ranking = _build_submission(ranking_csv, args.base)
 
     print("[predict_holdout] running PS assertions…")
     stats = _assert_submission(submission, ranking)

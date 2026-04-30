@@ -10,7 +10,7 @@ distribution-free 95% conformal precision bound on every passive flip.
 
 | Metric | Value |
 |---|---|
-| R3 vs Calling QC baseline | 50.62% |
+| R3 vs Calling QC on this dataset (intentionally low per PS) | 50.62% |
 | After Track 2 (passive) | 55.76% (+5.13 pp) |
 | After Track 2 + Track 3 (450 calls) | 61.82% (+11.20 pp) |
 | Precision on every passive flip | 96.97% |
@@ -18,6 +18,14 @@ distribution-free 95% conformal precision bound on every passive flip.
 | Robocall budget used | ≤ 450 |
 | Conformal coverage | 95% (α = 0.05) |
 | Total cost vs full manual QC | $108 vs $7,500 |
+
+Two baselines, both relevant. The PS team confirmed (Q&A 2026-04-30) that the
+provided 2,493-row dataset was deliberately seeded at ~50% accuracy to
+discriminate between submissions; on a stratified sample the real R3 baseline
+is ~75%. The pipeline is row-count agnostic and applies the same conformal
+gate regardless of which slice it sees, so the +11.20 pp gain transfers as a
+relative lift; on the unseen stratified holdout we expect to clear the 75%
+baseline, not collapse to it.
 
 Track 2 is $0 marginal cost on top of existing R3 spend.
 
@@ -140,6 +148,26 @@ Per-verdict efficiency: $1.25 / $0.63 ≈ 2.0× cheaper. Coverage-adjusted:
 54% of naive's verdict count, 27% of naive's spend — same lift, two-thirds
 less money, with a precision bound naive doesn't carry.
 
+## Submission format
+
+Per the PS team's Q&A clarification (2026-04-30): "Preserve the input file as
+is and with it give your columns." The submission CSV is therefore the
+original base workbook, every column intact, with these appended:
+
+| Column | Type | Vocabulary |
+|---|---|---|
+| `Predicted_Label` | str | `ACCURATE`, `INACCURATE`, `INCONCLUSIVE` |
+| `Confidence` | float | `[0, 1]` |
+| `Action_Taken` | str | `R3_ACCEPT`, `OVERRIDE`, `ROBOCALL` |
+| `Call_Priority` | int (nullable) | rank for ROBOCALL rows, null otherwise |
+| `Triage_Score` | float | calibrated triage score |
+| `Reason_Codes` | str | pipe-separated short codes, may be empty |
+
+`scripts/generate_submission.py` and `scripts/predict_holdout.py` both
+re-read the file they just wrote and assert: schema present, label vocab,
+action vocab, robocall count ≤ 450, `Confidence ∈ [0, 1]`, `Row ID` unique.
+Any violation aborts before the file is considered final.
+
 ## Deliverables
 
 - Track 1 outputs: `outputs/track1/`
@@ -150,9 +178,24 @@ less money, with a precision bound naive doesn't carry.
 - Docker image with `/predict`, `/triage`, `/metrics`, `/health`
 - Slide deck: `outputs/submission/Team_Byelabs_R3_Accuracy_Engine.pptx`
 
-## Data confidentiality
+## External APIs and PHI
 
 The optional row explainer in `demo/app.py` calls DeepSeek V3.1 via OpenRouter.
-The payload is model scores, R3 score band, and pre-defined reason codes only —
-never raw NPI, name, address, or phone. Disabled by default; enable by setting
-`OPENROUTER_API_KEY`.
+Per the PS team's confirmation (Q&A 2026-04-30, Ground Rule 6: compliant), the
+payload is model scores, R3 score band, and pre-defined short reason codes
+only — never raw NPI, name, address, phone, or any free-text PHI. The feature
+is disabled by default and only activates when `OPENROUTER_API_KEY` is set.
+The Streamlit demo continues to function (with an offline rule-based
+explainer) when the key is absent.
+
+## Q&A alignment with the PS team
+
+| Question | PS team answer | Where it's reflected |
+|---|---|---|
+| 1. Dataset: 1,500 vs 2,493? | Use all 2,493; train/test split on this only | Pipeline is row-count agnostic; 5-fold + LOSO CV on full 2,493 |
+| 2. IAM role / ARN? | Pending from their tech team | `entrypoint.sh` already supports OIDC and static-cred assumption |
+| 3. Submission schema? | Preserve input file + append your columns | `generate_submission.py` updated; see Submission format above |
+| 4. Baseline framing? | 50% on this dataset (intentional); ~75% stratified; judged on lift above 75% on unseen data | Both baselines reported; conformal gate is calibration-invariant |
+| 5. Call cost: connected vs conclusive? | 100 calls → 40 conclusive verdicts; pay per call | Cost model uses $0.50/call × 40% conclusivity (matches) |
+| 6. External API + PHI? | Compliant; document it | See External APIs and PHI section above |
+| 7. Docker registry URL? | Pending | Image builds with `docker build -t r3hackathon .`; ready to push wherever the registry URI lands |
